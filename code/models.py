@@ -3,11 +3,13 @@ import torch.utils.data
 import torch.nn as nn
 
 def get_model(params):
-
+    print("model: ", params['model'])
     if params['model'] == 'ResidualFCNet':
-        return ResidualFCNet(params['input_dim'], params['num_classes'], params['num_filts'], params['depth'])
+        return ResidualFCNet(params['input_dim'], params['num_filts'], params['depth'])
+    elif params['model'] == 'ResidualFCNetLatent':
+        return ResidualFCNetLatent(params['input_dim'], params['num_filts'], params['depth'])
     elif params['model'] == 'LinNet':
-        return LinNet(params['input_dim'], params['num_classes'])
+        return LinNet(params['input_dim'])
     else:
         raise NotImplementedError('Invalid model specified.')
 
@@ -32,7 +34,7 @@ class ResLayer(nn.Module):
 
 class ResidualFCNet(nn.Module):
 
-    def __init__(self, num_inputs, num_classes, num_filts, depth=4):
+    def __init__(self, num_inputs, num_filts, depth=4):
         super(ResidualFCNet, self).__init__()
         self.inc_bias = False
         #self.class_emb = nn.Linear(num_filts, num_classes, bias=self.inc_bias)
@@ -60,9 +62,32 @@ class ResidualFCNet(nn.Module):
             return x @ self.class_emb.weight[class_of_interest, :] + self.class_emb.bias[class_of_interest]
         else:
             return x @ self.class_emb.weight[class_of_interest, :]
+        
+class ResidualFCNetLatent(nn.Module):
+
+    def __init__(self, num_inputs, num_filts, depth=4):
+        super(ResidualFCNetLatent, self).__init__()
+        self.use_prev_latent = True
+        self.latent_dim = num_filts
+
+        in_dim = num_inputs + (self.latent_dim if self.use_prev_latent else 0)
+
+        self.val_emb = nn.Linear(num_filts, 1, bias=False)
+        layers = [nn.Linear(in_dim, num_filts), nn.ReLU(inplace=True)]
+        for _ in range(depth):
+            layers.append(ResLayer(num_filts))
+        self.feats = nn.Sequential(*layers)
+
+    def forward(self, x, prev_latent=None):
+        if self.use_prev_latent and prev_latent is not None:
+            x = torch.cat([x, prev_latent], dim=1)
+        loc_emb = self.feats(x)
+        out = self.val_emb(loc_emb)
+        return out.squeeze(-1), loc_emb  # return embedding for next time
+    
 
 class LinNet(nn.Module):
-    def __init__(self, num_inputs, num_classes):
+    def __init__(self, num_inputs):
         super(LinNet, self).__init__()
         self.num_layers = 0
         self.inc_bias = False

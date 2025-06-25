@@ -74,11 +74,52 @@ class TimeLocationDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, index):
         loc_feat  = self.loc_feats[index, :]
-        loc       = self.locs[index, :]
-        obs  = self.labels[index]
+        loc       = self.locs[index, :]     # [lon, lat]
+        obs       = self.labels[index]
+        time      = self.time_feats[index]  # torch.Tensor
+
+        key = f"{loc[0].item():.4f}_{loc[1].item():.4f}"
+        return loc_feat, loc, obs, time, key
+
+class InferenceTimeLocationDataset(torch.utils.data.Dataset):
+    def __init__(self, locs, labels, input_enc, device, time_feats):
+        self.input_enc = input_enc
+        self.enc = utils.CoordEncoder(input_enc)
+        self.locs = locs
+        self.loc_feats = self.enc.encode(locs)
+        self.labels = labels
+        self.time_feats = time_feats
+
+        if self.enc.raster is not None:
+            self.enc.raster = self.enc.raster.to(device)
+
+    def __len__(self):
+        return self.loc_feats.shape[0]
+
+    def __getitem__(self, index):
+        loc_feat = self.loc_feats[index]
+        loc = self.locs[index]
         time = self.time_feats[index]
-        return loc_feat, loc, obs, time
-    
+        return loc_feat, loc, time  # 정답 없음
+
+class InferenceLocationDataset(torch.utils.data.Dataset):
+    def __init__(self, locs, labels, input_enc, device):
+        self.input_enc = input_enc
+        self.enc = utils.CoordEncoder(input_enc)
+        self.locs = locs
+        self.loc_feats = self.enc.encode(locs)
+        self.labels = labels
+
+        if self.enc.raster is not None:
+            self.enc.raster = self.enc.raster.to(device)
+
+    def __len__(self):
+        return self.loc_feats.shape[0]
+
+    def __getitem__(self, index):
+        loc_feat = self.loc_feats[index]
+        loc = self.locs[index]
+        return loc_feat, loc
 
 def load_env():
     with open('paths.json', 'r') as f:
@@ -208,7 +249,8 @@ def load_obs_data(ip_dir):
         # 유효 범위 필터링
         valid_mask = (
             (lat >= -90) & (lat <= 90) &
-            (lon >= -180) & (lon <= 180)
+            (lon >= -180) & (lon <= 180) &
+            (~np.isnan(chl))
         )
         
         # 유효 픽셀만 추출
@@ -285,9 +327,9 @@ def load_timeseries_data(ip_dir):
 
         valid_mask = (
             (lat >= -90) & (lat <= 90) &
-            (lon >= -180) & (lon <= 180)
+            (lon >= -180) & (lon <= 180) &
+            (~np.isnan(chl))
         )
-
         lat_valid = lat[valid_mask]
         lon_valid = lon[valid_mask]
         chl_valid = chl[valid_mask]
@@ -406,4 +448,24 @@ def get_train_data(params):
     else:
         ds = LocationDataset(locs, labels, params['input_enc'], params['device'])
     
+    return ds
+
+def get_inference_data(params):
+    with open('paths.json', 'r') as f:
+        paths = json.load(f)
+    data_dir = paths['inference']
+
+    if params['ts']:
+        locs, labels, _, _, _, time_feats = load_timeseries_data(data_dir, inference=True)
+    else:
+        locs, labels, _, _, _ = load_obs_data(data_dir)
+
+    locs = torch.from_numpy(np.array(locs))  # inference는 subsampling 안 함
+    labels = torch.from_numpy(np.array(labels))
+
+    if params['ts']:
+        ds = InferenceTimeLocationDataset(locs, labels, params['input_enc'], params['device'], time_feats)
+    else:
+        ds = InferenceLocationDataset(locs, labels, params['input_enc'], params['device'])
+
     return ds

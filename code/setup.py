@@ -34,7 +34,7 @@ def get_default_params_train(overrides={}):
     '''
     data files
     '''
-    params['obs_dir'] = '/home/data/INTERP/data/'
+    params['obs_dir'] = '../data/GOCI/'
     #params['taxa_file'] = 'geo_prior_train_meta.json'
 
     '''
@@ -45,6 +45,7 @@ def get_default_params_train(overrides={}):
     params['input_enc'] = 'sin_cos' # sin_cos, env, sin_cos_env
     params['depth'] = 4
     params['ts'] = False
+    params['latent'] = False
     '''
     loss
     '''

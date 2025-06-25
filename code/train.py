@@ -6,6 +6,7 @@ import losses
 import models
 import datasets
 import utils
+import torch.nn as nn
 
 class Trainer():
 
@@ -52,6 +53,54 @@ class Trainer():
                 running_loss = 0.0
         # update learning rate according to schedule:
         self.lr_scheduler.step()
+        
+    def train_one_epoch_latent(self):
+        self.model.train()
+
+        running_loss = 0.0
+        samples_processed = 0
+        steps_trained = 0
+
+        latent_cache = {}  # (lon, lat) -> latent vector
+
+        for _, batch in enumerate(self.train_loader):
+            self.optimizer.zero_grad()
+
+            loc_feat, loc, obs, time, key = batch  # unpack
+
+            # prepare previous latent
+            prev_latents = []
+            for k in key:
+                if k in latent_cache:
+                    prev_latents.append(latent_cache[k])
+                else:
+                    prev_latents.append(torch.zeros(self.model.latent_dim).to(loc_feat.device))
+
+            prev_latents = torch.stack(prev_latents, dim=0)  # shape: (B, latent_dim)
+
+            # forward pass
+            pred, latents = self.model(loc_feat, prev_latents)
+
+            # compute loss
+            loss_fn = self.params.get("loss_fn", nn.MSELoss())
+            batch_loss = loss_fn(pred, obs)
+
+            batch_loss.backward()
+            self.optimizer.step()
+
+            # update cache
+            for i, k in enumerate(key):
+                latent_cache[k] = latents[i].detach()
+
+            # log
+            running_loss += float(batch_loss.item())
+            steps_trained += 1
+            samples_processed += loc_feat.shape[0]
+            if steps_trained % self.params['log_frequency'] == 0:
+                print(f'[{samples_processed}/{len(self.train_loader.dataset)}] loss: {np.around(running_loss / self.params["log_frequency"], 4)}')
+                running_loss = 0.0
+
+        self.lr_scheduler.step()
 
     def save_model(self):
         save_path = os.path.join(self.params['save_path'], 'model.pt')
@@ -84,7 +133,13 @@ def launch_training_run(ovr):
     # train:
     print("start training..")
     trainer = Trainer(model, train_loader, params)
-    for epoch in range(0, params['num_epochs']):
-        print(f'epoch {epoch+1}')
-        trainer.train_one_epoch()
+    
+    if params['latent']:
+        for epoch in range(0, params['num_epochs']):
+            print(f'epoch {epoch+1}')
+            trainer.train_one_epoch_latent()
+    else:
+        for epoch in range(0, params['num_epochs']):
+            print(f'epoch {epoch+1}')
+            trainer.train_one_epoch()
     trainer.save_model()

@@ -19,6 +19,9 @@ class Trainer():
 
         # define model:
         self.model = model
+        
+        self.device = params['device']
+        self.model.to(self.device)
 
         # define important objects:
         self.compute_loss = losses.get_loss_function(params)
@@ -27,6 +30,10 @@ class Trainer():
         # define optimization objects:
         self.optimizer = torch.optim.Adam(self.model.parameters(), params['lr'])
         self.lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(self.optimizer, gamma=params['lr_decay'])
+        
+        # 로그 파일 준비
+        log_path = os.path.join(self.params['save_path'], 'train_log.txt')
+        self.log_file = open(log_path, 'a')
 
     def train_one_epoch(self):
 
@@ -49,7 +56,9 @@ class Trainer():
             steps_trained += 1
             samples_processed += batch[0].shape[0]
             if steps_trained % self.params['log_frequency'] == 0:
-                print(f'[{samples_processed}/{len(self.train_loader.dataset)}] loss: {np.around(running_loss / self.params["log_frequency"], 4)}')
+                avg_loss = running_loss / self.params["log_frequency"]
+                message = f'[{samples_processed}/{len(self.train_loader.dataset)}] loss: {np.around(avg_loss, 4)}'
+                self.log(message)
                 running_loss = 0.0
         # update learning rate according to schedule:
         self.lr_scheduler.step()
@@ -66,7 +75,11 @@ class Trainer():
         for _, batch in enumerate(self.train_loader):
             self.optimizer.zero_grad()
 
-            loc_feat, loc, obs, time, key = batch  # unpack
+            loc_feat, loc, obs, time_feat, key = batch  # unpack
+            
+            loc_feat = loc_feat.to(self.device)
+            obs = obs.to(self.device)
+            time_feat = time_feat.to(self.device)
 
             # prepare previous latent
             prev_latents = []
@@ -102,10 +115,19 @@ class Trainer():
 
         self.lr_scheduler.step()
 
-    def save_model(self):
-        save_path = os.path.join(self.params['save_path'], 'model.pt')
-        op_state = {'state_dict': self.model.state_dict(), 'params' : self.params}
+    def save_model(self, epoch=None):
+        if epoch is not None:
+            filename = f"model_epoch{epoch}.pt"
+        else:
+            filename = "model.pt"
+        save_path = os.path.join(self.params['save_path'], filename)
+        op_state = {'state_dict': self.model.state_dict(), 'params': self.params}
         torch.save(op_state, save_path)
+        
+    def log(self, message):
+        print(message)
+        self.log_file.write(message + '\n')
+        self.log_file.flush()
 
 def launch_training_run(ovr):
     # setup:
@@ -113,7 +135,7 @@ def launch_training_run(ovr):
     params['save_path'] = os.path.join(params['save_base'], params['experiment_name'])
     if params['timestamp']:
         params['save_path'] = params['save_path'] + '_' + utils.get_time_stamp()
-    os.makedirs(params['save_path'], exist_ok=True)
+    os.makedirs(params['save_path'], exist_ok=False)
 
     # data:
     train_dataset = datasets.get_train_data(params)
@@ -135,11 +157,16 @@ def launch_training_run(ovr):
     trainer = Trainer(model, train_loader, params)
     
     if params['latent']:
-        for epoch in range(0, params['num_epochs']):
+        for epoch in range(params['num_epochs']):
             print(f'epoch {epoch+1}')
             trainer.train_one_epoch_latent()
+            if (epoch + 1) % 5 == 0:
+                trainer.save_model(epoch + 1)
     else:
-        for epoch in range(0, params['num_epochs']):
+        for epoch in range(params['num_epochs']):
             print(f'epoch {epoch+1}')
             trainer.train_one_epoch()
-    trainer.save_model()
+            if (epoch + 1) % 5 == 0:
+                trainer.save_model(epoch + 1)
+    trainer.save_model(epoch + 1)
+    trainer.log_file.close()

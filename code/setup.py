@@ -18,7 +18,7 @@ def get_default_params_train(overrides={}):
     misc
     '''
     params['device'] = 'cuda' # cuda, cpu
-    params['save_base'] = './experiments/'
+    params['save_base'] = '../results/experiments/'
     params['experiment_name'] = 'timeseries'
     params['timestamp'] = False
 
@@ -40,12 +40,13 @@ def get_default_params_train(overrides={}):
     '''
     model
     '''
-    params['model'] = 'ResidualFCNet'  # ResidualFCNet, LinNet
+    params['model'] = 'ResidualFCNetLatent'  # ResidualFCNet, LinNet
     params['num_filts'] = 256  # embedding dimension
     params['input_enc'] = 'sin_cos' # sin_cos, env, sin_cos_env
     params['depth'] = 4
     params['ts'] = False
     params['latent'] = False
+    params['device'] = 'cuda'
     '''
     loss
     '''
@@ -58,7 +59,7 @@ def get_default_params_train(overrides={}):
     params['batch_size'] = 2048
     params['lr'] = 0.0005
     params['lr_decay'] = 0.98
-    params['num_epochs'] = 10
+    params['num_epochs'] = 100
 
     '''
     saving

@@ -80,10 +80,11 @@ class ResidualFCNetLatent(nn.Module):
 
     def forward(self, x, prev_latent=None):
         if self.use_prev_latent and prev_latent is not None:
+            prev_latent = prev_latent.to(x.device)
             x = torch.cat([x, prev_latent], dim=1)
         loc_emb = self.feats(x)
         out = self.val_emb(loc_emb)
-        return out.squeeze(-1), loc_emb  # return embedding for next time
+        return out.squeeze(-1), loc_emb
     
 
 class LinNet(nn.Module):

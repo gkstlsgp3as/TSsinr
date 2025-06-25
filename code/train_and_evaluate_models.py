@@ -7,7 +7,7 @@ import eval
 
 train_params = {}
 
-train_params['experiment_name'] = 'timeseries_nanfiltered' # This will be the name of the directory where results for this run are saved.
+train_params['experiment_name'] = 'timeseries_latent_nanfilterd' # This will be the name of the directory where results for this run are saved.
 
 '''
 species_set
@@ -49,8 +49,8 @@ Time series
 - Time series data for training.
 - Valid values: True or False
 '''
-train_params['ts'] = False
-train_params['latent'] = False
+train_params['ts'] = True
+train_params['latent'] = True
 
 # train:
 train.launch_training_run(train_params)

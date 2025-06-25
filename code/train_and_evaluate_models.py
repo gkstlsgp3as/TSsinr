@@ -7,7 +7,7 @@ import eval
 
 train_params = {}
 
-train_params['experiment_name'] = 'demo' # This will be the name of the directory where results for this run are saved.
+train_params['experiment_name'] = 'timeseries_#1' # This will be the name of the directory where results for this run are saved.
 
 '''
 species_set

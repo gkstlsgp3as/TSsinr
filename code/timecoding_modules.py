@@ -13,7 +13,7 @@ def mapping(x, a, b):
         j = b[a.index(i)]
         new_x.append(j)
     return torch.Tensor(new_x)
-
+'''
 def temporal_encoding(timestamp, overyear_prediction=None):
 
     df = pd.DataFrame(index=timestamp)
@@ -78,6 +78,33 @@ def temporal_encoding(timestamp, overyear_prediction=None):
     encoded_time_input = torch.stack(encoded_time_input, dim=1)
 
     return encoded_time_input
+'''
+def temporal_encoding(timestamps, overyear_prediction=1):
+    timestamps = pd.to_datetime(timestamps)
+    
+    # Extract components using numpy (faster than Pandas column access)
+    y = timestamps.year
+    m = timestamps.month
+    d = timestamps.day
+    h = timestamps.hour
+    mi = timestamps.minute
+    s = timestamps.second
+
+    # Normalize each component directly (no mapping function needed)
+    # Note: year normalization allows for future prediction horizon
+    y_min = y.min()
+    y_max = y.max() + overyear_prediction
+    y_norm = 2 * (y - y_min) / (y_max - y_min) - 1 if y_max > y_min else np.zeros_like(y)
+
+    m_norm = 2 * (m - 1) / 11 - 1   # 1~12
+    d_norm = 2 * (d - 1) / 30 - 1   # 1~31
+    h_norm = 2 * h / 23 - 1         # 0~23
+    mi_norm = 2 * mi / 59 - 1       # 0~59
+    s_norm = 2 * s / 59 - 1         # 0~59
+
+    # Stack into [N, 6] tensor
+    encoded = np.stack([y_norm, m_norm, d_norm, h_norm, mi_norm, s_norm], axis=1)
+    return torch.from_numpy(encoded.astype(np.float32))
 
 class Timedata(torch.utils.data.Dataset):
     def __init__(self, data, encoded_input, train_scale=None):

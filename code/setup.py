@@ -44,7 +44,7 @@ def get_default_params_train(overrides={}):
     params['num_filts'] = 256  # embedding dimension
     params['input_enc'] = 'sin_cos' # sin_cos, env, sin_cos_env
     params['depth'] = 4
-
+    params['ts'] = False
     '''
     loss
     '''

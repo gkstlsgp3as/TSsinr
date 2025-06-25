@@ -69,19 +69,20 @@ def launch_training_run(ovr):
     # data:
     train_dataset = datasets.get_train_data(params)
     params['input_dim'] = train_dataset.input_dim
-    params['num_classes'] = train_dataset.num_classes
+    #params['num_classes'] = train_dataset.num_classes
     #params['class_to_taxa'] = train_dataset.class_to_taxa
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=params['batch_size'],
         shuffle=True,
         num_workers=4)
-
+    print("dataset loaded..")
     # model:
     model = models.get_model(params)
     model = model.to(params['device'])
-
+    print("model loaded..")
     # train:
+    print("start training..")
     trainer = Trainer(model, train_loader, params)
     for epoch in range(0, params['num_epochs']):
         print(f'epoch {epoch+1}')

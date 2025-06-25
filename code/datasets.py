@@ -44,7 +44,7 @@ class LocationDataset(torch.utils.data.Dataset):
         return loc_feat, loc, obs
     
 class TimeLocationDataset(torch.utils.data.Dataset):
-    def __init__(self, locs, labels, input_enc, device, timestamps):
+    def __init__(self, locs, labels, input_enc, device, time_feats):
 
         # handle input encoding:
         self.input_enc = input_enc
@@ -53,14 +53,12 @@ class TimeLocationDataset(torch.utils.data.Dataset):
         else:
             raster = None
         self.enc = utils.CoordEncoder(input_enc, raster)
-        self.time_enc = temporal_encoding
 
         # define some properties:
         self.locs = locs
-        self.timestamps = timestamps
         self.loc_feats = self.enc.encode(self.locs)
         self.labels = labels
-        self.time_feats = self.time_enc(self.timestamps)
+        self.time_feats = time_feats
         #self.classes = classes
         #self.class_to_taxa = class_to_taxa
 
@@ -303,21 +301,23 @@ def load_timeseries_data(ip_dir):
         days_per_month = np.cumsum([0] + [31,28,31,30,31,30,31,31,30,31,30,31])
         julian = days_per_month[months - 1] + days
         dates = (julian / 365.0).astype(np.float32)
+        
+        time_feats = temporal_encoding(timestamps)
 
         locs = np.vstack([lon_valid, lat_valid]).T.astype(np.float32)
         obs = chl_valid.astype(np.float32)
         obs_ids = np.arange(len(obs))
 
-        all_data.append((locs, obs, dates, years, obs_ids, timestamps))
+        all_data.append((locs, obs, dates, years, obs_ids, time_feats))
 
     locs = np.concatenate([a[0] for a in all_data], axis=0)
     obs = np.concatenate([a[1] for a in all_data], axis=0)
     dates = np.concatenate([a[2] for a in all_data], axis=0)
     years = np.concatenate([a[3] for a in all_data], axis=0)
     obs_ids = np.concatenate([a[4] for a in all_data], axis=0)
-    timestamps = torch.cat([a[5] for a in all_data], dim=0)
+    time_feats = np.concatenate([a[5] for a in all_data], axis=0)
 
-    return locs, obs, dates, years, obs_ids, timestamps
+    return locs, obs, dates, years, obs_ids, time_feats
 
 
 def choose_aux_species(current_species, num_aux_species, aux_species_seed, taxa_file):
@@ -381,7 +381,7 @@ def get_train_data(params):
 
     #locs, labels, _, _, _, _ = load_inat_data(obs_file, taxa_of_interest)
     if params['ts']: 
-        locs, labels, _, _, _, timestamps = load_timeseries_data(data_dir)
+        locs, labels, _, _, _, time_feats = load_timeseries_data(data_dir)
     else:
         locs, labels, _, _, _ = load_obs_data(data_dir)
     #unique_taxa, class_ids = np.unique(labels, return_inverse=True)
@@ -402,7 +402,7 @@ def get_train_data(params):
 
     #ds = LocationDataset(locs, labels, classes, class_to_taxa, params['input_enc'], params['device'])
     if params['ts']: 
-        ds = TimeLocationDataset(locs, labels, params['input_enc'], params['device'], timestamps)
+        ds = TimeLocationDataset(locs, labels, params['input_enc'], params['device'], time_feats)
     else:
         ds = LocationDataset(locs, labels, params['input_enc'], params['device'])
     
